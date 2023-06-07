@@ -75,9 +75,9 @@ one_vs_many<-function(markdir="E:/DATA/mm10/Nazar/tf/hg19/",target_ranges,verbos
                  "intersect_width","target_width","mark_width","IoU")
   for (mark in marks[2:4]){
     if (verbose){
-      print(paste0(Sys.time()," Reading file น",i,"/",length(marks)," ", mark))
+      print(paste0(Sys.time()," Reading file ยน",i,"/",length(marks)," ", mark))
     }
-    print_log(paste("Reading file น",i,"/",length(marks)," ", mark),log_con)
+    print_log(paste("Reading file ยน",i,"/",length(marks)," ", mark),log_con)
     if (!file.exists(mark)){
       print(paste0("File ",mark ,"does not exist!"))
     }
