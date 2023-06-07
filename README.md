@@ -1,6 +1,8 @@
 # ai-projects
 main_assoc
+
 Options:
+
         -i <INPUT DIR>, --dir=<INPUT DIR>
                 path to folder with bed files
 
@@ -36,7 +38,3 @@ Options:
 
         -h, --help
                 Show this help message and exit
-
-make_TF_and_hist_table_with_random_ - MC with uniform background
-
-low-input-dif-exp-HSV.R - diffferentian expression analysis
