@@ -1,5 +1,5 @@
 #!/usr/bin/Rscript
-#example Rscript E:/projects/AI/main_assoc.R -i E:/projects/AI/input -g E:/DATA/mm10/Nazar/hg19.ensGene.gtf -c E:/hg19.chrom.sizes
+#example Rscript E:/projects/AI/main_assoc.R -i E:/projects/AI/test -g E:/DATA/mm10/Nazar/hg19.ensGene.gtf -c E:/hg19.chrom.sizes
 #source("E:/projects/AI/funcs.R")
 suppressMessages(library(optparse)) # 1 7 3
 option_list = list(
@@ -33,7 +33,7 @@ opt = parse_args(opt_parser);
 
 
 if (is.null(opt$out)){
-  output_dir=paste0(getwd(),"/out")
+  output_dir=paste0(getwd(),"/storage")
   print(paste0("output path is not provided writing to ", output_dir))
   dir.create(output_dir,showWarnings = FALSE)
 }else(
@@ -58,7 +58,9 @@ if (is.null(opt$dir)){
   print_help(opt_parser)
   stop("input dir path must be supplied", call.=FALSE)
 }
-
+if (!dir.exists(opt$dir)){
+  stop(paste("Input directory",opt$dir,"does not exist!"), call.=FALSE)
+}
 if (is.null(opt$chrom)){
   print_help(opt_parser)
   stop("chrom sizes file must be supplied", call.=FALSE)
@@ -73,13 +75,13 @@ suppressMessages(library(regioneR)) #1.26.1
 suppressMessages(library(curl)) #4.3.2
 suppressMessages(library(doParallel))
 ####################################
-mscore<-function(dat_j,dat_i){
+mscore<-function(dat_j,dat_i,s_mode){
   if (s_mode=="region"){
-    dfji=length(subsetByOverlaps(dat_j,dat_i,ignore.strand=ig_strand))
+    dfji=length(subsetByOverlaps(dat_j,dat_i,ignore.strand=opt$strand))
     dfji1=dfji/length(dat_j)
   }
   if (s_mode=="bp"){
-    dfji=sum(width(intersect(dat_j,dat_i,ignore.strand=ig_strand)))
+    dfji=sum(width(intersect(dat_j,dat_i,ignore.strand=opt$strand)))
     dfji1=dfji/sum(width(dat_j))
   }
   if (s_mode=="weighted_bp"){
@@ -141,23 +143,26 @@ many_vs_many<-function(markdir=opt$dir,verbose=opt$verbose,s_mode=opt$mode,p_cal
   datnames=gsub(x=fs,pattern = ".*/|.bed",replacement = "")
   df=data.frame(matrix(nrow =length(fs) ,ncol = length(fs)*2))
   for (i in 1:length(fs)){
-    dat_i=import(paste0(markdir,fs[i]),format = "bed")
+    dat_i=import(paste0(markdir,"/",fs[i]),format = "bed")
+    if (verbose){
+      print(paste0(Sys.time(), " Running: ",dat_i))
+    }
     if (!is.null(ss)){
       dat_i=intersect(ss,dat_i,ignore.strand=T)
     }
     
     for (j in 1:length(fs)){
-      dat_j=import(paste0(markdir,fs[j]))
+      dat_j=import(paste0(markdir,"/",fs[j]))
       if (!is.null(ss)){
         dat_j=intersect(ss,dat_j,ignore.strand=T)
       }
       
       p=chisq_width(dat_i,dat_j)
-      r=mscore(dat_i,dat_j)
+      r=mscore(dat_i,dat_j,s_mode=opt$mode)
       df[i,j*2-1]=r[1]
       df[i,j*2]=paste(round(r[2]*100,2),"%"," p-val=",p[[1]]$p.value)
       p=chisq_width(dat_j,dat_i)
-      r=mscore(dat_j,dat_i)
+      r=mscore(dat_j,dat_i,s_mode=opt$mode)
       df[j,i*2-1]=r[1]
       df[j,i*2]=paste(round(r[2]*100,2),"%"," p-val=",p[[1]]$p.value)
       if (p_calc){
@@ -303,7 +308,7 @@ score_genomic_regions<-function(genome=opt$genome,pri_order=c("Promoter", "5UTR"
   downstream=flank(transcripts(txdb),300,start=F)
   genes=genes(txdb)
   
-  intergenicRegions=setdiff(genome_ranges,genes,ignore.strand=TRUE)
+  intergenicRegions=setdiff(get_genome_ranges(chr_sizes = opt$chrom),genes,ignore.strand=TRUE)
   
   l=list()
   for (i in 1:7){
@@ -334,10 +339,10 @@ score_genomic_regions<-function(genome=opt$genome,pri_order=c("Promoter", "5UTR"
 }
 ###########################
 if (is.null(opt$target)){
-  print(paste0(Sys.time(), "Starting in many vs many mode"))
+  print(paste0(Sys.time(), " Starting in many vs many mode"))
   res=many_vs_many(markdir=opt$dir,verbose=opt$verbose,s_mode=opt$mode,p=opt$simulate,opt$strand)
   }else{
-    print(paste0(Sys.time(), "Starting in one vs many mode"))
+    print(paste0(Sys.time(), " Starting in one vs many mode"))
   res=one_vs_many(markdir=opt$dir,target_ranges=opt$target,verbose=opt$verbose,s_mode=opt$mode,p=opt$simulate)
   }
 
@@ -347,5 +352,6 @@ if (!is.null(opt$genome)){
   res=score_genomic_regions(opts)
   write.table(x = res, file = paste0(output_dir,"/results_genomic_distribution.csv"),sep = "\t")
 }
+
 #####################
 
