@@ -382,6 +382,10 @@ if (is.null(opt$target)){
     print(paste0(Sys.time(), " Starting in one vs many mode"))
   res=one_vs_many(markdir=opt$dir,target_ranges=opt$target,verbose=opt$verbose,s_mode=opt$mode,p=opt$simulate)
   }
+ind2=(1:length(colnames(res)))[c(F,T,F)]
+ind3=(1:length(colnames(res)))[c(F,F,T)]
+colnames(res)[ind3]=paste0(colnames(res)[ind3],"_p")
+colnames(res)[ind2]=paste0(colnames(res)[ind2],"_pr")
 write.table(x = cbind(file_name = rownames(res), res), file = paste0(output_dir,"/results.csv"),sep = "\t",row.names = F,quote=F)
 ################################
 if (!is.null(opt$genome)){
