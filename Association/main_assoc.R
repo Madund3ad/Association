@@ -52,7 +52,7 @@ print_log<-function(text,log_con=log_con){
 if (is.null(opt$genome)){
   print_help(opt_parser)
   print_log("genome file must be supplied")
-  stop("genome file must be supplied", call.=FALSE)
+  cat("genome file is not supplied")
 }else{
   if (!file.exists(opt$genome)){
     print_log("genome file does not exist")
