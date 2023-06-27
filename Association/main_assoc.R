@@ -375,7 +375,7 @@ if (is.null(opt$target)){
     print(paste0(Sys.time(), " Starting in one vs many mode"))
   res=one_vs_many(markdir=opt$dir,target_ranges=opt$target,verbose=opt$verbose,s_mode=opt$mode,p=opt$simulate)
   }
-write.table(x = cbind(file_name = rownames(res), res), file = paste0(output_dir,"/results.csv"),sep = "\t",row.names = F)
+write.table(x = cbind(file_name = rownames(res), res), file = paste0(output_dir,"/results.csv"),sep = "\t",row.names = F,quote=F)
 ################################
 if (!is.null(opt$genome)){
   res=score_genomic_regions()
