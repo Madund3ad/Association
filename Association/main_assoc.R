@@ -197,16 +197,18 @@ many_vs_many<-function(markdir=opt$dir,verbose=opt$verbose,s_mode=opt$mode,p_cal
       }else{
       p=chisq_width(dat_i,dat_j,bglen =get_genome_len(opt$chrom) )
       if (i==j){
-        p="-"}
+        p="-"
+        df[j,i*3]=p
+        }else{
+          p=chisq_width(dat_j,dat_i,get_genome_len(opt$chrom))
+          df[j,i*3]=paste(p[[1]]$p.value)
+      }
       r=mscore(dat_i,dat_j,s_mode=opt$mode)
       df[i,j*3-2]=r[1]
       df[i,j*3-1]=paste(round(r[2]*100,2),"%")
-      df[i,j*3]=paste(p[[1]]$p.value)
-      p=chisq_width(dat_j,dat_i,get_genome_len(opt$chrom))
       r=mscore(dat_j,dat_i,s_mode=opt$mode)
       df[j,i*3-2]=r[1]
       df[j,i*3-1]=paste(round(r[2]*100,2),"%")
-      df[j,i*3]=paste(p[[1]]$p.value)
       }
     }
     
