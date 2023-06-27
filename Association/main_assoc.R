@@ -36,10 +36,15 @@ if (is.null(opt$out)){
   output_dir=paste0(getwd(),"/storage")
   print(paste0("output path is not provided writing to ", output_dir))
   dir.create(output_dir,showWarnings = FALSE)
-}else(
+}else{
+  if (!dir.exists(opt$out)){
+  stop(paste("Output directory",opt$out,"does not exist!"), call.=FALSE)
+  }
   output_dir=opt$out
-)
+}
+file.create(paste0(output_dir,"/log.txt"),showWarnings = FALSE)
 log_con <- file(paste0(output_dir,"/log.txt"))
+
 print_log<-function(text,log_con=log_con){
   cat(paste(Sys.time(),text),file = log_con, sep="\n")
 }
@@ -61,12 +66,22 @@ if (is.null(opt$dir)){
 if (!dir.exists(opt$dir)){
   stop(paste("Input directory",opt$dir,"does not exist!"), call.=FALSE)
 }
+
+
 if (is.null(opt$chrom)){
   print_help(opt_parser)
   stop("chrom sizes file must be supplied", call.=FALSE)
 }
-print("using parameters")
-print(opt)
+
+
+
+
+cat("Using parameters:\n")
+for (i in 1:length(opt)){
+  cat(paste(names(opt[i]),"=", opt[i],"\n"))
+  if (opt$verbose){
+    print_log(paste(names(opt[i]),"=", opt[i],"\n"),log_con)}
+}
 
 suppressMessages(library(GenomicFeatures)) #1.46.5
 suppressMessages(library(GenomicRanges))#1,46.1
@@ -94,20 +109,21 @@ mscore<-function(dat_j,dat_i,s_mode){
   return(c(dfji,dfji1))
 }
 sim_score<-function(track1,track2,ss,opt=opt){
+  s_mode=opt$mode
   no_cores <- detectCores() - 1  
   cl <- makeCluster(no_cores)  
   registerDoParallel(cl)
   genome=get_genome_ranges(chr_sizes =opt$chrom)
   if (s_mode=="region"){
     nov=foreach(i = 1:opt$nsim,.packages=c("GenomicRanges","regioneR"),.combine=c) %dopar% {
-      length(subsetByOverlaps(randomizeRegions(track1, mask = mask, genome=genome,non.overlapping=T),track2))
+      length(subsetByOverlaps(randomizeRegions(track1, mask = opt$mask, genome=genome,non.overlapping=T),track2))
     }
     obs=length(subsetByOverlaps(track1,track2))
     ops_pr=obs/length(track1)
   }
   if (s_mode=="bp"){
     nov=foreach(i = 1:opt$nsim,.packages=c("GenomicRanges","regioneR"),.combine=c) %dopar% {
-      sum(width(intersect(randomizeRegions(track1, mask = mask, genome=genome,non.overlapping=T),track2)))
+      sum(width(intersect(randomizeRegions(track1, mask = opt$mask, genome=genome,non.overlapping=T),track2)))
     }
     obs=sum(width(intersect(track1,track2)))
     ops_pr=obs/sum(width(track1))
@@ -119,7 +135,7 @@ sim_score<-function(track1,track2,ss,opt=opt){
     obs=sum(width(overlaps)*overlaps$score/1000)
     obs_pr=obs/weighted_mark
     
-    rr=shuffle_n(track1,genome=get_genome_ranges(chr_sizes = opt$chrom),n=opt$nsim )
+    rr=shuffle_n(track1,genome=get_genome_ranges(chr_sizes = opt$chrom),n=opt$nsim,mask = opt$mask )
     nov=vector()
     for (i in 1:opt$nsim){
       rr_s=rr[(length(track1)*(i-1)+1):(length(track1)*i)]
@@ -127,7 +143,6 @@ sim_score<-function(track1,track2,ss,opt=opt){
       overlaps <- pintersect(track2[hits@to],rr_s[hits@from])
       nov[i]=sum(width(overlaps)*overlaps$score/1000)
     }
-    nov
   }
   
   m=mean(nov)
@@ -145,31 +160,45 @@ many_vs_many<-function(markdir=opt$dir,verbose=opt$verbose,s_mode=opt$mode,p_cal
   for (i in 1:length(fs)){
     dat_i=import(paste0(markdir,"/",fs[i]),format = "bed")
     if (verbose){
-      print(paste0(Sys.time(), " Running: ",dat_i))
+      cat(paste0(Sys.time(), " Running: ",fs[i],"\n"))
+      print_log(text=paste0(Sys.time(), " Running: ",fs[i],"\n"),log_con)
     }
     if (!is.null(ss)){
       dat_i=intersect(ss,dat_i,ignore.strand=T)
     }
     
-    for (j in 1:length(fs)){
+    for (j in i:length(fs)){
+      if (verbose){
+        cat(paste0(Sys.time(), " : ",fs[j],"\n"))
+        print_log(text=paste0(Sys.time(), " to: ",fs[j],"\n"),log_con)
+      }
       dat_j=import(paste0(markdir,"/",fs[j]))
+      
       if (!is.null(ss)){
         dat_j=intersect(ss,dat_j,ignore.strand=T)
       }
-      
-      p=chisq_width(dat_i,dat_j)
+      if (opt$simulate){
+        sim_ij=sim_score(dat_i,dat_j,ss,opt=opt)
+        sim_ji=sim_score(dat_j,dat_i,ss,opt=opt)
+        p=sim_ij[2]
+        r=mscore(dat_i,dat_j,s_mode=opt$mode)
+        df[i,j*2-1]=r[1]
+        df[i,j*2]=paste0(round(r[2]*100,2),"%"," p-val_",sim_ij[3],"=",p)
+        p=sim_ji[2]
+        r=mscore(dat_j,dat_i,s_mode=opt$mode)
+        df[j,i*2-1]=r[1]
+        df[j,i*2]=paste0(round(r[2]*100,2),"%"," p-val_",sim_ji[3],"=",p)
+      }else{
+      p=chisq_width(dat_i,dat_j,bglen =get_genome_len(opt$chrom) )
       r=mscore(dat_i,dat_j,s_mode=opt$mode)
       df[i,j*2-1]=r[1]
       df[i,j*2]=paste(round(r[2]*100,2),"%"," p-val=",p[[1]]$p.value)
-      p=chisq_width(dat_j,dat_i)
+      p=chisq_width(dat_j,dat_i,get_genome_len(opt$chrom))
       r=mscore(dat_j,dat_i,s_mode=opt$mode)
       df[j,i*2-1]=r[1]
       df[j,i*2]=paste(round(r[2]*100,2),"%"," p-val=",p[[1]]$p.value)
-      if (p_calc){
-        
       }
     }
-    
     
   }
   colnames(df)=rep(datnames,each=2)
@@ -198,11 +227,11 @@ one_vs_many<-function(markdir=opt$dir,target_ranges=opt$target,verbose=opt$verbo
                  "intersect_width","target_width","mark_width","IoU")
   for (mark in marks){
     if (verbose){
-      print(paste0(Sys.time()," Reading file №",i,"/",length(marks)," ", mark))
+      cat(paste0(Sys.time()," Reading file №",i,"/",length(marks)," ", mark,"\n"))
     }
     print_log(paste("Reading file №",i,"/",length(marks)," ", mark),log_con)
     if (!file.exists(mark)){
-      print(paste0("File ",mark ,"does not exist!"))
+      cat(paste0("File ",mark ,"does not exist!","\n"))
     }
     tryCatch( { mark_ranges=import(mark,format="bed");}
               , error = function(e) {print(paste("Can't import: ",mark));break})
@@ -261,6 +290,7 @@ get_bg<-function(s){
   bg=unlist(bg)
   return(bg/sum(bg))
 }
+
 ################################
 chisq_width<-function(a,b,bglen=3088269832,simulate.p.value=F){
   a11=sum(width(intersect(a,b,ignore.strand=T)))
@@ -353,5 +383,4 @@ if (!is.null(opt$genome)){
   write.table(x = res, file = paste0(output_dir,"/results_genomic_distribution.csv"),sep = "\t")
 }
 
-#####################
 
