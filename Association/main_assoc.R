@@ -34,7 +34,7 @@ opt = parse_args(opt_parser);
 
 if (is.null(opt$out)){
   output_dir=paste0(getwd(),"/storage")
-  print(paste0("output path is not provided writing to ", output_dir))
+  cat(paste0("output path is not provided writing to ", output_dir,"\n"))
   dir.create(output_dir,showWarnings = FALSE)
 }else{
   if (!dir.exists(opt$out)){
@@ -42,11 +42,12 @@ if (is.null(opt$out)){
   }
   output_dir=opt$out
 }
-file.create(paste0(output_dir,"/log.txt"),showWarnings = FALSE)
-log_con <- file(paste0(output_dir,"/log.txt"))
+b=file.create(paste0(output_dir,"/log.txt"),showWarnings = FALSE)
+log_con <- file(paste0(output_dir,"/log.txt",open = "a"))
+
 
 print_log<-function(text,log_con=log_con){
-  cat(paste(Sys.time(),text),file = log_con, sep="\n")
+  cat(paste(Sys.time(),text),file = paste0(output_dir,"/log.txt"), sep="\n",append = T)
 }
 if (is.null(opt$genome)){
   print_help(opt_parser)
@@ -345,7 +346,6 @@ score_genomic_regions<-function(genome=opt$genome,pri_order=c("Promoter", "5UTR"
     l[[i]]=switch(pri_order[i],"Promoter"=proms,"5UTR"=UTR5, "3UTR"=UTR3, "Exon"=ex, "Intron"=introns,
                   "Downstream"=downstream, "Intergenic"=intergenicRegions)
   }
-  
   s=list()
   s[[1]]=l[[1]]
   for (i in 2:7){
@@ -364,7 +364,7 @@ score_genomic_regions<-function(genome=opt$genome,pri_order=c("Promoter", "5UTR"
       print(paste0(Sys.time()," Starting in one vs many mode for ",names(s)[i]))
       res=one_vs_many(markdir=opt$dir,target_ranges=opt$target,verbose=opt$verbose,s_mode=opt$mode,p=opt$simulate,ss = s[[i]])
     }
-    write.table(x = res, file = paste0(output_dir,"/results_",names(s)[i],".csv"),sep = "\t")
+    write.table(x = cbind(from_to = rownames(res), res), file = paste0(output_dir,"/results_",names(s)[i],".csv"),sep = "\t",row.names = F)
   }
 }
 ###########################
@@ -376,11 +376,11 @@ if (is.null(opt$target)){
   res=one_vs_many(markdir=opt$dir,target_ranges=opt$target,verbose=opt$verbose,s_mode=opt$mode,p=opt$simulate)
   }
 
-write.table(x = res, file = paste0(output_dir,"/results.csv"),sep = "\t")
+write.table(x = res, file = paste0(output_dir,"/results.csv"),sep = "\t",row.names = F)
 ################################
 if (!is.null(opt$genome)){
-  res=score_genomic_regions(opts)
-  write.table(x = res, file = paste0(output_dir,"/results_genomic_distribution.csv"),sep = "\t")
+  res=score_genomic_regions()
+  #write.table(x = cbind(from_to = rownames(res), res), file = paste0(output_dir,"/results_genomic_distribution.csv"),sep = "\t")
 }
-
+close(log_con)
 
